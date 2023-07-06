@@ -53,34 +53,38 @@ impl Ast {
     }
 
     fn build_addiction(&mut self) -> Expression {
-        let expr = self.build_multiplication();
+        let mut expr = self.build_multiplication();
 
-        match self.peek() {
-            Token::Plus | Token::Minus => {
-                let op = self.eat();
-                Expression::BinaryExpression(
-                    Box::new(expr),
-                    Box::new(self.build_multiplication()),
-                    op.clone(),
-                )
+        loop {
+            match self.peek() {
+                Token::Plus | Token::Minus => {
+                    let op = self.eat();
+                    expr = Expression::BinaryExpression(
+                        Box::new(expr),
+                        Box::new(self.build_multiplication()),
+                        op.clone(),
+                    );
+                }
+                _ => return expr,
             }
-            _ => expr,
         }
     }
 
     fn build_multiplication(&mut self) -> Expression {
-        let expr = self.build_primary();
+        let mut expr = self.build_primary();
 
-        match self.peek() {
-            Token::Multiply | Token::Divide => {
-                let op = self.eat();
-                Expression::BinaryExpression(
-                    Box::new(expr),
-                    Box::new(self.build_primary()),
-                    op.clone(),
-                )
+        loop {
+            match self.peek() {
+                Token::Multiply | Token::Divide => {
+                    let op = self.eat();
+                    expr = Expression::BinaryExpression(
+                        Box::new(expr),
+                        Box::new(self.build_primary()),
+                        op.clone(),
+                    );
+                }
+                _ => return expr,
             }
-            _ => expr,
         }
     }
 
