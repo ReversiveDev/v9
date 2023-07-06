@@ -1,51 +1,29 @@
-use super::{tokenize, Token};
+use super::{Token, Tokenizer};
 
 pub struct Ast {
-    offset: usize,
-    tokens: Vec<Token>,
-    tokens_len: usize,
+    tokenizer: Tokenizer,
 }
 
 impl Ast {
     pub fn new(code: &str) -> Self {
-        let tokens = tokenize(code).unwrap();
         Self {
-            offset: 0,
-            tokens_len: tokens.len(),
-            tokens,
+            tokenizer: Tokenizer::new(code),
         }
-    }
-
-    fn peek(&self) -> &Token {
-        if let Some(token) = self.tokens.get(self.offset) {
-            token
-        } else {
-            unreachable!("Offset out of bounds");
-        }
-    }
-
-    fn eat(&mut self) -> Token {
-        let token = self.peek().clone();
-        self.offset += 1;
-        token
     }
 
     fn eof(&self) -> bool {
-        self.offset >= self.tokens_len
-            || match self.peek() {
-                Token::Eof => true,
-                _ => false,
-            }
+        match self.tokenizer.peek() {
+            Token::Eof => true,
+            _ => false,
+        }
     }
 
-    pub fn build(&mut self) -> Result<Statement, ()> {
-        let mut nodes: Vec<Node> = Vec::new();
-
-        while !self.eof() {
-            nodes.push(Node::Expression(self.build_expression()));
+    pub fn next(&mut self) -> Option<Node> {
+        if !self.eof() {
+            Some(Node::Expression(self.build_expression()))
+        } else {
+            None
         }
-
-        Ok(Statement::Program(nodes))
     }
 
     fn build_expression(&mut self) -> Expression {
@@ -56,9 +34,9 @@ impl Ast {
         let mut expr = self.build_multiplication();
 
         loop {
-            match self.peek() {
+            match self.tokenizer.peek() {
                 Token::Plus | Token::Minus => {
-                    let op = self.eat();
+                    let op = self.tokenizer.next();
                     expr = Expression::BinaryExpression(
                         Box::new(expr),
                         Box::new(self.build_multiplication()),
@@ -74,9 +52,9 @@ impl Ast {
         let mut expr = self.build_primary();
 
         loop {
-            match self.peek() {
+            match self.tokenizer.peek() {
                 Token::Multiply | Token::Divide => {
-                    let op = self.eat();
+                    let op = self.tokenizer.next();
                     expr = Expression::BinaryExpression(
                         Box::new(expr),
                         Box::new(self.build_primary()),
@@ -89,7 +67,7 @@ impl Ast {
     }
 
     fn build_primary(&mut self) -> Expression {
-        let token = self.eat();
+        let token = self.tokenizer.next();
 
         match token {
             Token::Number(value) => Expression::NumberLiteral(value),
@@ -99,7 +77,6 @@ impl Ast {
 }
 
 #[derive(Debug, Clone)]
-#[warn(dead_code)]
 pub enum Node {
     Expression(Expression),
     Statement(Statement),
@@ -113,6 +90,4 @@ pub enum Expression {
 }
 
 #[derive(Debug, Clone)]
-pub enum Statement {
-    Program(Vec<Node>),
-}
+pub enum Statement {}

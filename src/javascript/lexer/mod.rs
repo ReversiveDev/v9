@@ -3,101 +3,177 @@ use std::str;
 
 pub mod ast;
 
-pub fn tokenize(code: &str) -> Result<Vec<Token>, String> {
-    let mut offset = 0;
-    let input_bytes = code.as_bytes();
+pub struct Tokenizer {
+    offset: usize,
+    code: Vec<u8>,
+    code_len: usize,
+}
 
-    // [Otimização] Obtém o tamanho total do código fora
-    // do loop para evitar chamadas desnecessárias
-    let code_len = code.len();
-
-    // [Otimização] Define uma capacidade inicial baseada no tamanho do código
-    // para evitar alocações dentro do loop
-    let mut tokens: Vec<Token> = Vec::with_capacity(code_len / 2);
-
-    while offset < code_len {
-        let token: Token = match input_bytes[offset] {
-            b'0'..=b'9' => {
-                let (value, consumed) = parse_partial(&input_bytes[offset..]).unwrap();
-                if consumed > 1 {
-                    offset += consumed - 1;
-                }
-                Token::Number(value)
-            }
-            b'a'..=b'z' | b'A'..=b'Z' => {
-                let start = offset;
-                while offset < code_len && input_bytes[offset].is_ascii_alphabetic() {
-                    offset += 1;
-                }
-
-                let chars = &input_bytes[start..offset];
-
-                tokens.push(Token::Identifier(
-                    str::from_utf8(chars).unwrap().to_string(),
-                ));
-
-                continue;
-            }
-            b'"' | b'\'' => {
-                let quote = input_bytes[offset];
-                offset += 1;
-
-                let start = offset;
-                while offset < code_len
-                    && input_bytes[offset].is_ascii_alphabetic()
-                    && input_bytes[offset] != quote
-                {
-                    offset += 1;
-                }
-
-                let chars = &input_bytes[start..offset];
-
-                // Skip the closing quote
-                if input_bytes[offset] == quote {
-                    offset += 1;
-                }
-
-                tokens.push(Token::String(
-                    str::from_utf8(chars).unwrap().to_string(),
-                ));
-
-                continue;
-            }
-            b'+' => Token::Plus,
-            b'-' => Token::Minus,
-            b'*' => Token::Multiply,
-            b'/' => Token::Divide,
-            b'=' => Token::Assignment,
-            b';' => Token::Semicolon,
-            b':' => Token::Colon,
-            b',' => Token::Comma,
-            b'.' => Token::Dot,
-            b'(' => Token::LParen,
-            b')' => Token::RParen,
-            b'{' => Token::LBrace,
-            b'}' => Token::RBrace,
-            b'[' => Token::LBracket,
-            b']' => Token::RBracket,
-            b' ' | b'\t' | b'\n' | b'\r' => {
-                offset += 1;
-                continue;
-            }
-            _ => {
-                return Err(format!(
-                    "Unknown token: '{}'",
-                    str::from_utf8(&input_bytes[offset..offset + 1])
-                        .unwrap()
-                        .to_string()
-                ))
-            }
-        };
-
-        tokens.push(token);
-        offset += 1;
+impl Tokenizer {
+    pub fn new(code: &str) -> Self {
+        let code = code.as_bytes().to_vec();
+        Self {
+            offset: 0,
+            code_len: code.len(),
+            code,
+        }
     }
 
-    tokens.push(Token::Eof);
-    Ok(tokens)
+    fn eof(&self) -> bool {
+        self.offset >= self.code_len
+    }
+
+    pub fn peek(&self) -> Token {
+        if self.eof() {
+            Token::Eof
+        } else {
+            let mut offset = self.offset;
+            let token;
+            loop {
+                token = match self.code[offset] {
+                    b'0'..=b'9' => {
+                        let (value, _) = parse_partial(&self.code[offset..]).unwrap();
+                        Token::Number(value)
+                    }
+                    b'a'..=b'z' | b'A'..=b'Z' => {
+                        let start = offset;
+                        while !self.eof() && self.code[offset].is_ascii_alphabetic() {
+                            offset += 1;
+                        }
+
+                        let chars = &self.code[start..offset];
+
+                        return Token::Identifier(str::from_utf8(chars).unwrap().to_string());
+                    }
+                    b'"' | b'\'' => {
+                        let quote = self.code[offset];
+                        offset += 1;
+
+                        let start = offset;
+                        while !self.eof()
+                            && self.code[offset].is_ascii_alphabetic()
+                            && self.code[offset] != quote
+                        {
+                            offset += 1;
+                        }
+
+                        let chars = &self.code[start..offset];
+
+                        return Token::String(str::from_utf8(chars).unwrap().to_string());
+                    }
+                    b'+' => Token::Plus,
+                    b'-' => Token::Minus,
+                    b'*' => Token::Multiply,
+                    b'/' => Token::Divide,
+                    b'=' => Token::Assignment,
+                    b';' => Token::Semicolon,
+                    b':' => Token::Colon,
+                    b',' => Token::Comma,
+                    b'.' => Token::Dot,
+                    b'(' => Token::LParen,
+                    b')' => Token::RParen,
+                    b'{' => Token::LBrace,
+                    b'}' => Token::RBrace,
+                    b'[' => Token::LBracket,
+                    b']' => Token::RBracket,
+                    b' ' | b'\t' | b'\n' | b'\r' => {
+                        offset += 1;
+                        continue;
+                    }
+                    _ => unreachable!(
+                        "Unknown token '{}'",
+                        str::from_utf8(&self.code[offset..offset + 1])
+                            .unwrap()
+                            .to_string()
+                    ),
+                };
+
+                break;
+            }
+
+            token
+        }
+    }
+
+    pub fn next(&mut self) -> Token {
+        if self.eof() {
+            Token::Eof
+        } else {
+            let token;
+            loop {
+                token = match self.code[self.offset] {
+                    b'0'..=b'9' => {
+                        let (value, consumed) = parse_partial(&self.code[self.offset..]).unwrap();
+                        if consumed > 1 {
+                            self.offset += consumed - 1;
+                        }
+                        Token::Number(value)
+                    }
+                    b'a'..=b'z' | b'A'..=b'Z' => {
+                        let start = self.offset;
+                        while !self.eof() && self.code[self.offset].is_ascii_alphabetic() {
+                            self.offset += 1;
+                        }
+
+                        let chars = &self.code[start..self.offset];
+
+                        return Token::Identifier(str::from_utf8(chars).unwrap().to_string());
+                    }
+                    b'"' | b'\'' => {
+                        let quote = self.code[self.offset];
+                        self.offset += 1;
+
+                        let start = self.offset;
+                        while !self.eof()
+                            && self.code[self.offset].is_ascii_alphabetic()
+                            && self.code[self.offset] != quote
+                        {
+                            self.offset += 1;
+                        }
+
+                        let chars = &self.code[start..self.offset];
+
+                        // Skip the closing quote
+                        if self.code[self.offset] == quote {
+                            self.offset += 1;
+                        }
+
+                        return Token::String(str::from_utf8(chars).unwrap().to_string());
+                    }
+                    b'+' => Token::Plus,
+                    b'-' => Token::Minus,
+                    b'*' => Token::Multiply,
+                    b'/' => Token::Divide,
+                    b'=' => Token::Assignment,
+                    b';' => Token::Semicolon,
+                    b':' => Token::Colon,
+                    b',' => Token::Comma,
+                    b'.' => Token::Dot,
+                    b'(' => Token::LParen,
+                    b')' => Token::RParen,
+                    b'{' => Token::LBrace,
+                    b'}' => Token::RBrace,
+                    b'[' => Token::LBracket,
+                    b']' => Token::RBracket,
+                    b' ' | b'\t' | b'\n' | b'\r' => {
+                        self.offset += 1;
+                        continue;
+                    }
+                    _ => unreachable!(
+                        "Unknown token '{}'",
+                        str::from_utf8(&self.code[self.offset..self.offset + 1])
+                            .unwrap()
+                            .to_string()
+                    ),
+                };
+
+                break;
+            }
+
+            self.offset += 1;
+            token
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

@@ -1,9 +1,7 @@
-use std::rc::Rc;
-
 use self::values::Value;
 
 use super::lexer::{
-    ast::{Ast, Expression, Node, Statement},
+    ast::{Ast, Expression, Node},
     Token,
 };
 
@@ -13,28 +11,22 @@ pub struct Context {}
 
 pub struct Script {
     // bytecode: Vec<u8>,
-    body: Vec<Node>,
+    ast: Ast,
 }
 
 impl Script {
     pub fn new(code: &str) -> Self {
         Self {
             // bytecode: self.compile(),
-            body: match Ast::new(code).build() {
-                Ok(program) => match program {
-                    Statement::Program(nodes) => nodes,
-                },
-                Err(()) => panic!(""),
-            },
+            ast: Ast::new(code),
         }
     }
 
     // fn compile(&self, ...) -> Vec<u8> {}
 
-    pub fn run_in_context(&self, context: &Context) -> Value {
-        let nodes = self.body.clone();
+    pub fn run_in_context(&mut self, context: &Context) -> Value {
         let mut last_value = Value::Undefined;
-        for node in nodes {
+        while let Some(node) = self.ast.next() {
             match node {
                 Node::Expression(expression) => {
                     last_value = self.eval_expression(expression, context);
