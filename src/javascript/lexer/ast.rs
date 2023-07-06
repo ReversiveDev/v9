@@ -20,14 +20,58 @@ impl Ast {
 
     pub fn next(&mut self) -> Option<Node> {
         if !self.eof() {
-            Some(Node::Expression(self.build_expression()))
+            Some(self.build())
         } else {
             None
         }
     }
 
-    fn build_expression(&mut self) -> Expression {
-        self.build_addiction()
+    fn build(&mut self) -> Node {
+        self.build_variable_declaration()
+    }
+
+    fn build_variable_declaration(&mut self) -> Node {
+        let expr: Expression = self.build_addiction();
+
+        match expr.clone() {
+            Expression::Identifier(keyword) => match keyword.as_str() {
+                "var" | "let" | "const" => {
+                    let mut declarations: Vec<Statement> = Vec::new();
+                    while !self.eof() {
+                        let identifier = self.build_primary();
+                        match identifier {
+                            Expression::Identifier(identifier) => {
+                                let mut value: Option<Expression> = None;
+                                match self.tokenizer.peek() {
+                                    Token::Assignment => {
+                                        self.tokenizer.next();
+                                        value = Some(self.build_addiction());
+                                    }
+                                    Token::Semicolon => {
+                                        self.tokenizer.next();
+                                        break;
+                                    }
+                                    _ => panic!("Error"),
+                                }
+
+                                declarations.push(Statement::VariableDeclarator(
+                                    identifier,
+                                    Box::new(value),
+                                ));
+                            }
+                            _ => panic!("Invalid variable declaration"),
+                        }
+                    }
+                    Node::Statement(Statement::VariableDeclaration(declarations))
+                }
+                _ => Node::Expression(expr),
+            },
+            _ => Node::Expression(expr),
+        }
+
+        // let a = self.build_addiction();
+
+        // Node::Statement(Statement::VariableDeclaration(vec![]))
     }
 
     fn build_addiction(&mut self) -> Expression {
@@ -71,6 +115,7 @@ impl Ast {
 
         match token {
             Token::Number(value) => Expression::NumberLiteral(value),
+            Token::Identifier(identifier) => Expression::Identifier(identifier),
             token => unreachable!("Unknown token {:?}", token),
         }
     }
@@ -87,7 +132,11 @@ pub enum Expression {
     BinaryExpression(Box<Expression>, Box<Expression>, Token),
     StringLiteral(String),
     NumberLiteral(f32),
+    Identifier(String),
 }
 
 #[derive(Debug, Clone)]
-pub enum Statement {}
+pub enum Statement {
+    VariableDeclaration(Vec<Statement>),
+    VariableDeclarator(String, Box<Option<Expression>>),
+}
