@@ -5,7 +5,7 @@ mod javascript;
 
 fn main() {
     // let code = "class Foo {\n    constructor() {}\n}";
-    let code = "10 + 10 * 2";
+    let code = "2 * 10 + 10 * 2";
 
     let start = Instant::now();
     let ctx = Context {};
